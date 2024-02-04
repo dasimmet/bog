@@ -1,19 +1,20 @@
 const std = @import("std");
-const Builder = std.build.Builder;
+const Builder = std.Build;
 
 pub fn build(b: *Builder) void {
     const mode = b.standardOptimizeOption(.{});
+    const target = b.standardTargetOptions(.{});
 
     const lib = b.addStaticLibrary(.{
         .name = "bog",
         .optimize = mode,
-        .target = .{},
+        .target = target,
         .root_source_file = .{ .path = "src/lib.zig" },
     });
     lib.linkLibC();
 
     const lib_options = b.addOptions();
-    lib.addOptions("build_options", lib_options);
+    lib.root_module.addOptions("build_options", lib_options);
 
     lib_options.addOption(
         bool,
@@ -27,37 +28,38 @@ pub fn build(b: *Builder) void {
     );
 
     const lib_step = b.step("lib", "Build C library");
-    lib_step.dependOn(&b.addInstallArtifact(lib).step);
+    lib_step.dependOn(&b.addInstallArtifact(lib, .{}).step);
 
     // c library usage example
     const c_example = b.addExecutable(.{
         .name = "bog_from_c",
         .optimize = mode,
-        .target = .{},
+        .target = target,
     });
-    c_example.addCSourceFile("examples/bog_from_c.c", &[_][]const u8{});
-    c_example.addIncludePath("include");
+    c_example.addCSourceFile(.{
+        .file = .{.path = "examples/bog_from_c.c"},
+        .flags = &[_][]const u8{},
+    });
+    c_example.addIncludePath(.{ .path = "include" });
     c_example.linkLibrary(lib);
     c_example.linkLibC();
-    c_example.addLibraryPath("zig-cache/lib");
+    c_example.addLibraryPath(.{ .path = "zig-cache/lib" });
     c_example.step.dependOn(lib_step);
-    c_example.override_dest_dir = .{ .custom = "examples/bin" };
 
     // calling zig from bog example
     const zig_from_bog = b.addExecutable(.{
         .name = "zig_from_bog",
         .optimize = mode,
-        .target = .{},
+        .target = target,
         .root_source_file = .{ .path = "examples/zig_from_bog.zig" },
     });
-    zig_from_bog.addAnonymousModule("bog", .{
-        .source_file = .{ .path = "src/bog.zig" },
+    zig_from_bog.root_module.addAnonymousImport("bog", .{
+        .root_source_file = .{ .path = "src/bog.zig" },
     });
-    zig_from_bog.override_dest_dir = .{ .custom = "examples/bin" };
 
     const examples_step = b.step("examples", "Build all examples");
-    examples_step.dependOn(&b.addInstallArtifact(c_example).step);
-    examples_step.dependOn(&b.addInstallArtifact(zig_from_bog).step);
+    examples_step.dependOn(&b.addInstallArtifact(c_example, .{}).step);
+    examples_step.dependOn(&b.addInstallArtifact(zig_from_bog, .{}).step);
 
     addTests(b, examples_step, .{
         "src/main.zig",
@@ -69,11 +71,11 @@ pub fn build(b: *Builder) void {
     var exe = b.addExecutable(.{
         .name = "bog",
         .optimize = mode,
-        .target = .{},
+        .target = target,
         .root_source_file = .{ .path = "src/main.zig" },
     });
-    exe.addAnonymousModule("linenoize", .{
-        .source_file = .{ .path = "lib/linenoize/src/main.zig" },
+    exe.root_module.addAnonymousImport("linenoize", .{
+        .root_source_file = .{ .path = "lib/linenoize/src/main.zig" },
     });
     b.installArtifact(exe);
 
@@ -94,17 +96,17 @@ pub fn build(b: *Builder) void {
     clean_step.dependOn(&rm_examples_bing.step);
 }
 
-fn addTests(b: *Builder, examples_step: *std.build.Step, tests: anytype) void {
+fn addTests(b: *Builder, examples_step: *std.Build.Step, tests: anytype) void {
     const tests_step = b.step("test", "Run all tests");
     // tests_step.dependOn(examples_step);
     _ = examples_step;
     inline for (tests) |t| {
         var test_step = b.addTest(.{ .root_source_file = .{ .path = t } });
-        test_step.addAnonymousModule("bog", .{
-            .source_file = .{ .path = "src/bog.zig" },
+        test_step.root_module.addAnonymousImport("bog", .{
+            .root_source_file = .{ .path = "src/bog.zig" },
         });
-        test_step.addAnonymousModule("linenoize", .{
-            .source_file = .{ .path = "lib/linenoize/src/main.zig" },
+        test_step.root_module.addAnonymousImport("linenoize", .{
+            .root_source_file = .{ .path = "lib/linenoize/src/main.zig" },
         });
         tests_step.dependOn(&test_step.step);
     }

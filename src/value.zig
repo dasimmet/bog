@@ -116,7 +116,7 @@ pub const Value = union(Type) {
                     const e_value = &map.values()[iter.i.u].*;
                     const t = res.*.?.tuple;
                     // removing `const` on `Map` causes dependency loop??
-                    t[0] = @intToPtr(*Value, @ptrToInt(e_key));
+                    t[0] = @as(*Value, @ptrFromInt(@intFromPtr(e_key)));
                     t[1] = e_value;
                     iter.i.u += 1;
                 },
@@ -171,19 +171,19 @@ pub const Value = union(Type) {
         extra_index: u32,
 
         pub fn args(f: Func) u32 {
-            return @enumToInt(f.module.extra[f.extra_index]) & std.math.maxInt(u31);
+            return @intFromEnum(f.module.extra[f.extra_index]) & std.math.maxInt(u31);
         }
 
         pub fn variadic(f: Func) bool {
-            return (@enumToInt(f.module.extra[f.extra_index]) >> 31) != 0;
+            return (@intFromEnum(f.module.extra[f.extra_index]) >> 31) != 0;
         }
 
         pub fn captures(f: Func) []*Value {
-            return f.captures_ptr[0..@enumToInt(f.module.extra[f.extra_index + 1])];
+            return f.captures_ptr[0..@intFromEnum(f.module.extra[f.extra_index + 1])];
         }
 
         pub fn body(f: Func) []const u32 {
-            return @ptrCast([]const u32, f.module.extra[f.extra_index + 2 + @enumToInt(f.module.extra[f.extra_index + 1]) ..][0..f.body_len]);
+            return @as([]const u32, @ptrCast(f.module.extra[f.extra_index + 2 + @intFromEnum(f.module.extra[f.extra_index + 1]) ..][0..f.body_len]));
         }
     };
 
@@ -193,7 +193,7 @@ pub const Value = union(Type) {
         step: i64 = 1,
 
         pub fn count(r: Range) u64 {
-            return @intCast(u64, @divFloor(r.end - r.start - 1, r.step));
+            return @as(u64, @intCast(@divFloor(r.end - r.start - 1, r.step)));
         }
 
         pub fn iterator(r: Range) Range.Iterator {
@@ -258,11 +258,11 @@ pub const Value = union(Type) {
         };
 
         pub inline fn unwrap(ptr: *anyopaque, comptime T: type) *T {
-            return @ptrCast(*T, @alignCast(@alignOf(T), ptr));
+            return @as(*T, @ptrCast(@alignCast(ptr)));
         }
 
         pub fn typeId(comptime _: type) usize {
-            return @ptrToInt(&struct {
+            return @intFromPtr(&struct {
                 var id: u8 = 0;
             }.id);
         }
@@ -407,18 +407,18 @@ pub const Value = union(Type) {
                 }
             },
         }
-        return @truncate(u32, hasher.final());
+        return @as(u32, @truncate(hasher.final()));
     }
 
     pub fn eql(a: *const Value, b: *const Value) bool {
         switch (a.*) {
             .int => |i| return switch (b.*) {
                 .int => |b_val| i == b_val,
-                .num => |b_val| @intToFloat(f64, i) == b_val,
+                .num => |b_val| @as(f64, @floatFromInt(i)) == b_val,
                 else => false,
             },
             .num => |n| return switch (b.*) {
-                .int => |b_val| n == @intToFloat(f64, b_val),
+                .int => |b_val| n == @as(f64, @floatFromInt(b_val)),
                 .num => |b_val| n == b_val,
                 else => false,
             },
@@ -463,90 +463,90 @@ pub const Value = union(Type) {
         };
     }
 
-    /// Prints string representation of value to writer
-    pub fn dump(value: *const Value, writer: anytype, level: u32) @TypeOf(writer).Error!void {
-        switch (value.*) {
+    /// Prints string representation of value to jws
+    pub fn dump(value: *const Value, jws: anytype, level: u32) !void {
+        _ = switch (value.*) {
             .iterator, .spread => unreachable,
-            .int => |i| try writer.print("{}", .{i}),
-            .num => |n| try writer.print("{d}", .{n}),
-            .bool => |b| try writer.writeAll(if (b) "true" else "false"),
-            .null => try writer.writeAll("null"),
+            .int => |i| try jws.print("{}", .{i}),
+            .num => |n| try jws.print("{d}", .{n}),
+            .bool => |b| try jws.write(if (b) "true" else "false"),
+            .null => try jws.write("null"),
             .range => |r| {
-                try writer.print("{}:{}:{}", .{ r.start, r.end, r.step });
+                try jws.print("{}:{}:{}", .{ r.start, r.end, r.step });
             },
             .tuple => |t| {
                 if (level == 0) {
-                    try writer.writeAll("(...)");
+                    _ = try jws.write("(...)");
                 } else {
-                    try writer.writeByte('(');
+                    _ = try jws.write("(");
                     for (t, 0..) |v, i| {
-                        if (i != 0) try writer.writeAll(", ");
-                        try v.dump(writer, level - 1);
+                        _ = if (i != 0) try jws.write(", ");
+                        try v.dump(jws, level - 1);
                     }
-                    try writer.writeByte(')');
+                    _ = try jws.write(")");
                 }
             },
             .map => |m| {
                 if (level == 0) {
-                    try writer.writeAll("{...}");
+                    _ = try jws.write("{...}");
                 } else {
-                    try writer.writeByte('{');
+                    _ = try jws.write("{");
                     var i: usize = 0;
                     var iter = m.iterator();
                     while (iter.next()) |entry| : (i += 1) {
-                        if (i != 0)
-                            try writer.writeAll(", ");
-                        try entry.key_ptr.*.dump(writer, level - 1);
-                        try writer.writeAll(" = ");
-                        try entry.value_ptr.*.dump(writer, level - 1);
+                        _ = if (i != 0)
+                            try jws.write(", ");
+                        try entry.key_ptr.*.dump(jws, level - 1);
+                        _ = try jws.write(" = ");
+                        try entry.value_ptr.*.dump(jws, level - 1);
                     }
-                    try writer.writeByte('}');
+                    _ = try jws.write("}");
                 }
             },
             .list => |l| {
                 if (level == 0) {
-                    try writer.writeAll("[...]");
+                    _ = try jws.write("[...]");
                 } else {
-                    try writer.writeByte('[');
+                    _ = try jws.write("[");
                     for (l.inner.items, 0..) |v, i| {
-                        if (i != 0) try writer.writeAll(", ");
-                        try v.dump(writer, level - 1);
+                        _ = if (i != 0) try jws.write(", ");
+                        try v.dump(jws, level - 1);
                     }
-                    try writer.writeByte(']');
+                    _ = try jws.write("]");
                 }
             },
             .err => |e| {
                 if (level == 0) {
-                    try writer.writeAll("error(...)");
+                    _ = try jws.write("error(...)");
                 } else {
-                    try writer.writeAll("error(");
-                    try e.dump(writer, level - 1);
-                    try writer.writeByte(')');
+                    _ = try jws.write("error(");
+                    try e.dump(jws, level - 1);
+                    _ = try jws.write(")");
                 }
             },
-            .str => |s| try s.dump(writer),
+            .str => |s| try s.dump(jws),
             .func => |f| {
-                try writer.print("fn({})@0x{X}[{}]", .{ f.args(), f.body()[0], f.captures().len });
+                try jws.print("fn({})@0x{X}[{}]", .{ f.args(), f.body()[0], f.captures().len });
             },
             .frame => |f| {
-                try writer.print("frame@x{X}", .{f.body[0]});
+                try jws.print("frame@x{X}", .{f.body[0]});
             },
             .native => |n| {
-                try writer.print("native({})@0x{}", .{ n.arg_count, @ptrToInt(n.func) });
+                try jws.print("native({})@0x{}", .{ n.arg_count, @intFromPtr(n.func) });
             },
             .tagged => |t| {
-                try writer.print("@{s}", .{t.name});
+                try jws.print("@{s}", .{t.name});
                 if (level == 0) {
-                    try writer.writeAll("(...)");
+                    _ = try jws.write("(...)");
                 } else if (t.value != Value.Null) {
-                    try t.value.dump(writer, level - 1);
+                    try t.value.dump(jws, level - 1);
                 }
             },
             .native_val => |n| {
                 // TODO expose dump function
-                try writer.writeAll(n.vtable.typeName(n.ptr));
+                _ = try jws.write(n.vtable.typeName(n.ptr));
             },
-        }
+        };
     }
 
     /// Returns value in `container` at `index`.
@@ -556,11 +556,11 @@ pub const Value = union(Type) {
                 .int => {
                     var i = index.int;
                     if (i < 0)
-                        i += @intCast(i64, tuple.len);
+                        i += @as(i64, @intCast(tuple.len));
                     if (i < 0 or i >= tuple.len)
                         return ctx.throw("index out of bounds");
 
-                    res.* = tuple[@intCast(u32, i)];
+                    res.* = tuple[@as(u32, @intCast(i))];
                 },
                 .range => |r| {
                     if (r.start < 0 or r.end > tuple.len)
@@ -569,11 +569,11 @@ pub const Value = union(Type) {
                     res.* = try ctx.vm.gc.alloc(.list);
                     res.*.?.* = .{ .list = .{} };
                     const res_list = &res.*.?.*.list;
-                    try res_list.inner.ensureUnusedCapacity(ctx.vm.gc.gpa, @intCast(usize, r.count()));
+                    try res_list.inner.ensureUnusedCapacity(ctx.vm.gc.gpa, @as(usize, @intCast(r.count())));
 
                     var it = r.iterator();
                     while (it.next()) |some| {
-                        res_list.inner.appendAssumeCapacity(tuple[@intCast(u32, some)]);
+                        res_list.inner.appendAssumeCapacity(tuple[@as(u32, @intCast(some))]);
                     }
                 },
                 .str => |s| {
@@ -582,7 +582,7 @@ pub const Value = union(Type) {
                     }
 
                     if (mem.eql(u8, s.data, "len")) {
-                        res.*.?.* = .{ .int = @intCast(i64, tuple.len) };
+                        res.*.?.* = .{ .int = @as(i64, @intCast(tuple.len)) };
                     } else {
                         return ctx.throw("no such property");
                     }
@@ -640,11 +640,11 @@ pub const Value = union(Type) {
                 .int => {
                     var i = index.int;
                     if (i < 0)
-                        i += @intCast(i64, tuple.len);
+                        i += @as(i64, @intCast(tuple.len));
                     if (i < 0 or i >= tuple.len)
                         return ctx.throw("index out of bounds");
 
-                    tuple[@intCast(u32, i)] = new_val;
+                    tuple[@as(u32, @intCast(i))] = new_val;
                 },
                 .range => |r| {
                     if (r.start < 0 or r.end > tuple.len)
@@ -652,7 +652,7 @@ pub const Value = union(Type) {
 
                     var it = r.iterator();
                     while (it.next()) |some| {
-                        tuple[@intCast(u32, some)] = new_val;
+                        tuple[@as(u32, @intCast(some))] = new_val;
                     }
                 },
                 else => return ctx.throw("invalid index type"),
@@ -711,7 +711,7 @@ pub const Value = union(Type) {
                 .int = switch (val.*) {
                     .int => unreachable,
                     .num => |num| std.math.lossyCast(i64, num),
-                    .bool => |b| @boolToInt(b),
+                    .bool => |b| @intFromBool(b),
                     .str => unreachable,
                     else => return ctx.throwFmt("cannot cast {s} to int", .{val.typeName()}),
                 },
@@ -719,8 +719,8 @@ pub const Value = union(Type) {
             .num => .{
                 .num = switch (val.*) {
                     .num => unreachable,
-                    .int => |int| @intToFloat(f64, int),
-                    .bool => |b| @intToFloat(f64, @boolToInt(b)),
+                    .int => |int| @as(f64, @floatFromInt(int)),
+                    .bool => |b| @as(f64, @floatFromInt(@intFromBool(b))),
                     .str => unreachable,
                     else => return ctx.throwFmt("cannot cast {s} to num", .{val.typeName()}),
                 },
@@ -814,8 +814,8 @@ pub const Value = union(Type) {
             type => switch (@typeInfo(val)) {
                 .Struct => |info| {
                     comptime var pub_decls = 0;
-                    inline for (info.decls) |decl| {
-                        if (decl.is_pub) pub_decls += 1;
+                    inline for (info.decls) |_| {
+                        pub_decls += 1;
                     }
 
                     const res = try vm.gc.alloc(.map);
@@ -823,7 +823,6 @@ pub const Value = union(Type) {
                     try res.map.ensureTotalCapacity(vm.gc.gpa, pub_decls);
 
                     inline for (info.decls) |decl| {
-                        if (!decl.is_pub) continue;
                         // skip common interfaces
                         if (comptime std.mem.eql(u8, decl.name, "intoBog")) continue;
                         if (comptime std.mem.eql(u8, decl.name, "fromBog")) continue;
@@ -848,7 +847,7 @@ pub const Value = union(Type) {
                     if (info.size == .Slice) @compileError("unsupported type: " ++ @typeName(val));
                     const int = try vm.gc.alloc(.int);
                     int.* = .{
-                        .int = @bitCast(isize, @ptrToInt(val)),
+                        .int = @as(isize, @bitCast(@intFromPtr(val))),
                     };
                     return int;
                 },
@@ -1035,20 +1034,20 @@ pub const Value = union(Type) {
                     .int => |int| {
                         if (int < std.math.minInt(T) or int > std.math.maxInt(T))
                             return ctx.throw("cannot fit int in desired type");
-                        return @intCast(T, int);
+                        return @as(T, @intCast(int));
                     },
                     .num => |num| std.math.lossyCast(T, num),
                     else => return ctx.throw("expected int"),
                 },
                 .Float => |info| switch (info.bits) {
                     32 => switch (val.*) {
-                        .num => |num| @floatCast(f32, num),
-                        .int => |int| @intToFloat(f32, int),
+                        .num => |num| @as(f32, @floatCast(num)),
+                        .int => |int| @as(f32, @floatFromInt(int)),
                         else => return ctx.throw("expected num"),
                     },
                     64 => switch (val.*) {
                         .num => |num| num,
-                        .int => |int| @intToFloat(f64, int),
+                        .int => |int| @as(f64, @floatFromInt(int)),
                         else => return ctx.throw("expected num"),
                     },
                     else => @compileError("unsupported float"),
@@ -1072,46 +1071,46 @@ pub const Value = union(Type) {
         };
     }
 
-    pub fn jsonStringify(val: *const Value, options: std.json.StringifyOptions, writer: anytype) @TypeOf(writer).Error!void {
-        switch (val.*) {
-            .null => try writer.writeAll("null"),
+    pub fn jsonStringify(self: @This(), jws: anytype) !void {
+        switch (self) {
+            .null => try jws.write("null"),
             .tuple => |t| {
-                try writer.writeByte('[');
+                try jws.write('[');
                 for (t, 0..) |e, i| {
-                    if (i != 0) try writer.writeByte(',');
-                    try e.jsonStringify(options, writer);
+                    if (i != 0) try jws.write(',');
+                    try e.jsonStringify(jws);
                 }
-                try writer.writeByte(']');
+                try jws.write(']');
             },
             .list => |*l| {
-                try writer.writeByte('[');
+                try jws.write('[');
                 for (l.inner.items, 0..) |e, i| {
-                    if (i != 0) try writer.writeByte(',');
-                    try e.jsonStringify(options, writer);
+                    if (i != 0) try jws.write(',');
+                    try e.jsonStringify(jws);
                 }
-                try writer.writeByte(']');
+                try jws.write(']');
             },
             .map => |*m| {
-                try writer.writeByte('{');
+                try jws.write('{');
                 var i: usize = 0;
                 var iter = m.iterator();
                 while (iter.next()) |entry| : (i += 1) {
                     if (i != 0)
-                        try writer.writeAll(", ");
+                        _ = try jws.write(", ");
 
-                    try entry.key_ptr.*.jsonStringify(options, writer);
-                    try writer.writeAll(":");
-                    try entry.value_ptr.*.jsonStringify(options, writer);
+                    try entry.key_ptr.*.jsonStringify(jws);
+                    _ = try jws.write(":");
+                    try entry.value_ptr.*.jsonStringify(jws);
                 }
-                try writer.writeByte('}');
+                try jws.write('}');
             },
 
             .int,
             .num,
             .bool,
-            => try val.dump(writer, 0),
+            => try self.dump(jws, 0),
             .str => |s| {
-                try writer.print("\"{}\"", .{std.zig.fmtEscapes(s.data)});
+                try jws.print("\"{}\"", .{std.zig.fmtEscapes(s.data)});
             },
             .native,
             .func,
@@ -1121,9 +1120,9 @@ pub const Value = union(Type) {
             .tagged,
             .native_val,
             => {
-                try writer.writeByte('\"');
-                try val.dump(writer, 0);
-                try writer.writeByte('\"');
+                try jws.write('\"');
+                try self.dump(jws, 0);
+                try jws.write('\"');
             },
             .iterator, .spread => unreachable,
         }
@@ -1135,16 +1134,16 @@ var buffer: [1024]u8 = undefined;
 fn testDump(val: Value, expected: []const u8) !void {
     var fbs = std.io.fixedBufferStream(&buffer);
 
-    val.dump(fbs.writer(), 4) catch @panic("test failed");
+    val.dump(fbs.jws(), 4) catch @panic("test failed");
     try std.testing.expectEqualStrings(expected, fbs.getWritten());
 }
 
 test "dump int/num" {
-    var int = Value{
+    const int = Value{
         .int = 2,
     };
     try testDump(int, "2");
-    var num = Value{
+    const num = Value{
         .num = 2.5,
     };
     try testDump(num, "2.5");
@@ -1154,7 +1153,7 @@ test "dump error" {
     var int = Value{
         .int = 2,
     };
-    var err = Value{
+    const err = Value{
         .err = &int,
     };
     try testDump(err, "error(2)");

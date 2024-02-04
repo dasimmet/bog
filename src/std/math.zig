@@ -39,12 +39,12 @@ pub fn ln(ctx: Vm.Context, val: *Value) !*Value {
         .int => |i| {
             if (i <= 0) return ctx.throw("ln is undefined for numbers less than zero");
             const res = try ctx.vm.gc.alloc(.int);
-            res.* = Value{ .int = std.math.lossyCast(i64, std.math.floor(std.math.ln(@intToFloat(f64, i)))) };
+            res.* = Value{ .int = std.math.lossyCast(i64, std.math.floor(@log(@as(f64, @floatFromInt(i))))) };
             return res;
         },
         .num => |n| {
             const res = try ctx.vm.gc.alloc(.num);
-            res.* = Value{ .num = std.math.ln(n) };
+            res.* = Value{ .num = @log(n) };
             return res;
         },
         else => return ctx.throwFmt("ln expects a number, got '{s}'", .{val.typeName()}),
@@ -55,7 +55,7 @@ pub fn sqrt(ctx: Vm.Context, val: *Value) !*Value {
     return switch (val.*) {
         .int => |i| {
             const res = try ctx.vm.gc.alloc(.int);
-            res.* = Value{ .int = std.math.sqrt(@intCast(u64, i)) };
+            res.* = Value{ .int = std.math.sqrt(@as(u64, @intCast(i))) };
             return res;
         },
         .num => |n| {
@@ -164,7 +164,7 @@ pub fn ilogb(val: f64) i32 {
 }
 
 pub fn log(base: f64, val: f64) f64 {
-    return math.log(f64, base, val);
+    return @log(val)/@log(base);
 }
 
 pub fn log2(val: f64) f64 {

@@ -16,10 +16,10 @@ pub fn main() !void {
     defer vm.deinit();
     try vm.addPackage("pow", pow);
 
-    const res = vm.run(source) catch |e| switch (e) {
+    const res = vm.compileAndRun(source) catch |e| switch (e) {
         else => |err| return err,
-        error.TokenizeError, error.ParseError, error.CompileError, error.RuntimeError => {
-            try vm.errors.render(source, std.io.getStdErr().writer());
+        error.TokenizeError, error.ParseError, error.CompileError => {
+            try vm.errors.render(std.io.getStdErr().writer());
             return error.RunningBogFailed;
         },
     };

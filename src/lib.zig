@@ -57,13 +57,12 @@ comptime {
 }
 
 export fn bog_Vm_run(vm: *bog.Vm, res: **bog.Value, source: [*:0]const u8) Error {
-    res.* = vm.run(span(source)) catch |e| switch (e) {
+    res.* = vm.compileAndRun(span(source)) catch |e| switch (e) {
         error.OutOfMemory => return .OutOfMemory,
         error.TokenizeError => return .TokenizeError,
         error.ParseError => return .ParseError,
         error.CompileError => return .CompileError,
-        error.RuntimeError => return .RuntimeError,
-        error.MalformedByteCode => return .MalformedByteCode,
+        else => undefined,
     };
 
     return .None;
@@ -85,7 +84,8 @@ export fn bog_Vm_call(vm: *bog.Vm, res: **bog.Value, container: *bog.Value, func
 }
 
 export fn bog_Vm_renderErrors(vm: *bog.Vm, source: [*:0]const u8, out: *std.c.FILE) Error {
-    vm.errors.render(span(source), std.io.cWriter(out)) catch return .IoError;
+    _ = source;
+    vm.errors.render(std.io.cWriter(out)) catch return .IoError;
 
     return .None;
 }
@@ -105,13 +105,14 @@ export fn bog_Errors_deinit(errors: *bog.Errors) void {
 }
 
 export fn bog_Errors_render(errors: *bog.Errors, source: [*:0]const u8, out: *std.c.FILE) Error {
-    errors.render(span(source), std.io.cWriter(out)) catch return .IoError;
+    _ = source;
+    errors.render(std.io.cWriter(out)) catch return .IoError;
 
     return .None;
 }
 
-export fn bog_parse(tree: **bog.Tree, source: [*:0]const u8, errors: *bog.Errors) Error {
-    tree.* = bog.parse(gpa, span(source), errors) catch |e| switch (e) {
+export fn bog_parse(tree: **bog.Tree, path: [*:0]const u8, source: [*:0]const u8, errors: *bog.Errors) Error {
+    tree.* = bog.parse(gpa, span(source), span(path), errors) catch |e| switch (e) {
         error.OutOfMemory => return .OutOfMemory,
         error.TokenizeError => return .TokenizeError,
         error.ParseError => return .ParseError,

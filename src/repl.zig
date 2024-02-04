@@ -17,7 +17,7 @@ pub fn run(gpa: Allocator, in: File, out: File) !void {
 
     repl.vm.gc.stack_protect_start = @frameAddress();
 
-    var frame_val = try repl.vm.gc.alloc(.frame);
+    const frame_val = try repl.vm.gc.alloc(.frame);
     frame_val.* = .{ .frame = &repl.frame };
     defer frame_val.* = .{ .int = 0 }; // clear frame
 
@@ -97,14 +97,14 @@ pub const Repl = struct {
         try repl.compiler.scopes.append(gpa, .{
             .symbol = .{
                 .name = "ans",
-                .ref = @intToEnum(bog.Bytecode.Ref, 0),
+                .ref = @as(bog.Bytecode.Ref, @enumFromInt(0)),
                 .mut = false,
                 .val = undefined,
             },
         });
         try repl.compiler.globals.append(gpa, .{
             .name = "ans",
-            .ref = @intToEnum(bog.Bytecode.Ref, 0),
+            .ref = @as(bog.Bytecode.Ref, @enumFromInt(0)),
             .mut = false,
             .val = undefined,
         });
