@@ -116,6 +116,7 @@ export fn bog_parse(tree: **bog.Tree, path: [*:0]const u8, source: [*:0]const u8
         error.OutOfMemory => return .OutOfMemory,
         error.TokenizeError => return .TokenizeError,
         error.ParseError => return .ParseError,
+        error.NeedInput => return .NeedInput,
     };
 
     return .None;

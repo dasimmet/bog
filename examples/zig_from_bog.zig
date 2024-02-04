@@ -24,6 +24,6 @@ pub fn main() !void {
         },
     };
 
-    const bog_integer = try res.bogToZig(i64, &vm);
+    const bog_integer = try res.bogToZig(i64, res.frame.ctx(vm));
     std.debug.assert(bog_integer == 8);
 }
