@@ -69,15 +69,12 @@ export fn bog_Vm_run(vm: *bog.Vm, res: **bog.Value, source: [*:0]const u8) Error
 }
 
 export fn bog_Vm_call(vm: *bog.Vm, res: **bog.Value, container: *bog.Value, func_name: [*:0]const u8) Error {
-    res.* = vm.call(container, span(func_name), .{}) catch |e| switch (e) {
+    const func_name_value = bog.Value.string(func_name);
+    const func = container.map.get(&func_name_value).?;
+    res.* = vm.run(func.frame) catch |e| switch (e) {
         error.OutOfMemory => return .OutOfMemory,
-        error.RuntimeError => return .RuntimeError,
-        error.MalformedByteCode => return .MalformedByteCode,
-        error.NotAMap => return .NotAMap,
-        error.NoSuchMember => return .NoSuchMember,
-        error.NotAFunction => return .NotAFunction,
-        error.InvalidArgCount => return .InvalidArgCount,
-        error.NativeFunctionsUnsupported => return .NativeFunctionsUnsupported,
+        error.FatalError => return .RuntimeError,
+        error.Suspended => return .RuntimeError,
     };
 
     return .None;
@@ -111,19 +108,19 @@ export fn bog_Errors_render(errors: *bog.Errors, source: [*:0]const u8, out: *st
     return .None;
 }
 
-export fn bog_parse(tree: **bog.Tree, path: [*:0]const u8, source: [*:0]const u8, errors: *bog.Errors) Error {
+export fn bog_parse(tree: *bog.Tree, path: [*:0]const u8, source: [*:0]const u8, errors: *bog.Errors) Error {
     tree.* = bog.parse(gpa, span(source), span(path), errors) catch |e| switch (e) {
         error.OutOfMemory => return .OutOfMemory,
         error.TokenizeError => return .TokenizeError,
         error.ParseError => return .ParseError,
-        error.NeedInput => return .NeedInput,
+        error.NeedInput => unreachable,
     };
 
     return .None;
 }
 
 export fn bog_Tree_deinit(tree: *bog.Tree) void {
-    tree.deinit();
+    tree.deinit(gpa);
 }
 
 export fn bog_Tree_render(tree: *bog.Tree, out: *std.c.FILE, changed: ?*bool) Error {
