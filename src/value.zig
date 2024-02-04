@@ -297,6 +297,15 @@ pub const Value = union(Type) {
                     .capacity = data.len,
                 },
             },
+            [*:0]const u8 => {
+                const span = std.mem.span(data);
+                return .{
+                    .str = .{
+                        .data = span,
+                        .capacity = span.len,
+                    },
+                };
+            },
             else => .{
                 .str = .{
                     .data = data,
