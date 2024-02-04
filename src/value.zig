@@ -6,34 +6,31 @@ const Vm = bog.Vm;
 
 pub const Type = enum(u8) {
     null,
-    int,
-    num,
     bool,
-    str,
     tuple,
     map,
     list,
     err,
+    int,
+    num,
     range,
+    str,
     func,
-    tagged,
-
     /// A called function during execution.
     frame,
-
-    /// pseudo type user should not have access to via valid bytecode
-    iterator,
-
     /// native being separate from .func is an implementation detail
     native,
-
     native_val,
-
+    tagged,
+    /// pseudo type user should not have access to via valid bytecode
+    iterator,
     /// Result of ... operand, needs special handling in contexts where allowed.
     spread,
 };
 
 pub const Value = union(Type) {
+    null,
+    bool: bool,
     tuple: []*Value,
     map: Map,
     list: List,
@@ -52,10 +49,6 @@ pub const Value = union(Type) {
     },
     iterator: Iterator,
     spread: Spread,
-
-    /// always memoized
-    bool: bool,
-    null,
 
     pub const Iterator = struct {
         value: *Value,
@@ -787,7 +780,7 @@ pub const Value = union(Type) {
 
     /// Converts Zig value to Bog value. Allocates copy in the gc.
     pub fn zigToBog(vm: *Vm, val: anytype) error{OutOfMemory}!*Value {
-        if (comptime std.meta.trait.hasFn("intoBog")(@TypeOf(val))) {
+        if (comptime std.meta.hasFn(@TypeOf(val), "intoBog")) {
             return try val.intoBog(vm);
         }
 
@@ -987,7 +980,7 @@ pub const Value = union(Type) {
     /// Converts Bog value to Zig value. Returned string is invalidated
     /// on next garbage collection.
     pub fn bogToZig(val: *Value, comptime T: type, ctx: Vm.Context) NativeError!T {
-        if (comptime std.meta.trait.hasFn("fromBog")(T)) {
+        if (comptime std.meta.hasFn(T, "fromBog")) {
             return try T.fromBog(val, ctx);
         }
 

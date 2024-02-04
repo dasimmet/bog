@@ -414,7 +414,7 @@ pub const LinenoiseState = struct {
             );
         }
 
-        std.mem.copy(
+        std.mem.copyForwards(
             u8,
             self.buf.items[self.pos .. self.pos + c.len],
             c,
@@ -518,7 +518,7 @@ pub const LinenoiseState = struct {
     pub fn editDelete(self: *Self) !void {
         if (self.buf.items.len > 0 and self.pos < self.buf.items.len) {
             const utf8_len = std.unicode.utf8CodepointSequenceLength(self.buf.items[self.pos]) catch 1;
-            std.mem.copy(u8, self.buf.items[self.pos..], self.buf.items[self.pos + utf8_len ..]);
+            std.mem.copyForwards(u8, self.buf.items[self.pos..], self.buf.items[self.pos + utf8_len ..]);
             try self.buf.resize(self.allocator, self.buf.items.len - utf8_len);
             try self.refreshLine();
         }
@@ -528,7 +528,7 @@ pub const LinenoiseState = struct {
         if (self.buf.items.len == 0 or self.pos == 0) return;
 
         const len = self.prevCodepointLen(self.pos);
-        std.mem.copy(u8, self.buf.items[self.pos - len ..], self.buf.items[self.pos..]);
+        std.mem.copyForwards(u8, self.buf.items[self.pos - len ..], self.buf.items[self.pos..]);
         self.pos -= len;
         try self.buf.resize(self.allocator, self.buf.items.len - len);
         try self.refreshLine();
@@ -540,9 +540,9 @@ pub const LinenoiseState = struct {
         if (prev_len == 0 or prevprev_len == 0) return;
 
         var tmp: [4]u8 = undefined;
-        std.mem.copy(u8, &tmp, self.buf.items[self.pos - (prev_len + prevprev_len) .. self.pos - prev_len]);
-        std.mem.copy(u8, self.buf.items[self.pos - (prev_len + prevprev_len) ..], self.buf.items[self.pos - prev_len .. self.pos]);
-        std.mem.copy(u8, self.buf.items[self.pos - prevprev_len ..], tmp[0..prevprev_len]);
+        std.mem.copyForwards(u8, &tmp, self.buf.items[self.pos - (prev_len + prevprev_len) .. self.pos - prev_len]);
+        std.mem.copyForwards(u8, self.buf.items[self.pos - (prev_len + prevprev_len) ..], self.buf.items[self.pos - prev_len .. self.pos]);
+        std.mem.copyForwards(u8, self.buf.items[self.pos - prevprev_len ..], tmp[0..prevprev_len]);
 
         try self.refreshLine();
     }
@@ -557,7 +557,7 @@ pub const LinenoiseState = struct {
 
             const diff = old_pos - self.pos;
             const new_len = self.buf.items.len - diff;
-            std.mem.copy(u8, self.buf.items[self.pos..new_len], self.buf.items[old_pos..]);
+            std.mem.copyForwards(u8, self.buf.items[self.pos..new_len], self.buf.items[old_pos..]);
             try self.buf.resize(self.allocator, new_len);
             try self.refreshLine();
         }
@@ -570,7 +570,7 @@ pub const LinenoiseState = struct {
 
     pub fn editKillLineBackward(self: *Self) !void {
         const new_len = self.buf.items.len - self.pos;
-        std.mem.copy(u8, self.buf.items, self.buf.items[self.pos..]);
+        std.mem.copyForwards(u8, self.buf.items, self.buf.items[self.pos..]);
         self.pos = 0;
         try self.buf.resize(self.allocator, new_len);
         try self.refreshLine();

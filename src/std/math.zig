@@ -76,7 +76,7 @@ pub fn isSignalNan(val: f64) bool {
 }
 
 pub fn fabs(val: f64) f64 {
-    return math.fabs(val);
+    return @abs(val);
 }
 
 pub fn ceil(val: f64) f64 {
@@ -140,11 +140,11 @@ pub fn atan(val: f64) f64 {
 }
 
 pub fn atan2(y: f64, x: f64) f64 {
-    return math.atan2(f64, y, x);
+    return math.atan2(y, x);
 }
 
 pub fn hypot(x: f64, y: f64) f64 {
-    return math.hypot(f64, x, y);
+    return math.hypot(x, y);
 }
 
 pub fn exp(val: f64) f64 {
@@ -164,7 +164,7 @@ pub fn ilogb(val: f64) i32 {
 }
 
 pub fn log(base: f64, val: f64) f64 {
-    return @log(val)/@log(base);
+    return @log(val) / @log(base);
 }
 
 pub fn log2(val: f64) f64 {
